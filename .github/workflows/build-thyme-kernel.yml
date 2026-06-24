@@ -15,7 +15,6 @@ on:
         type: boolean
 
 jobs:
-  build:
     name: "Linux 4.19.157 · thyme · Android 13"
     runs-on: ubuntu-22.04
     timeout-minutes: 180  
