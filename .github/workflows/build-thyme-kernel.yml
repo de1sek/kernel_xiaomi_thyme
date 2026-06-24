@@ -39,7 +39,6 @@ jobs:
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" Makefile | head -4
 
       
-        run: |
           cd kernel
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
           echo "KernelSU injected"
