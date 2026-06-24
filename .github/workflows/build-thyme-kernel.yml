@@ -21,7 +21,6 @@ jobs:
     timeout-minutes: 180        
 
     steps:
-      
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
