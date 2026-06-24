@@ -18,8 +18,7 @@ jobs:
   build:
     name: "Linux 4.19.157 · thyme · Android 13"
     runs-on: ubuntu-22.04
-    timeout-minutes: 180        
-        run: |
+    timeout-minutes: 180  
           sudo apt-get update -qq
           sudo apt-get install -y \
             bc bison flex libssl-dev libelf-dev make python3 zip git curl \
