@@ -85,7 +85,6 @@ jobs:
             https://github.com/osm0sis/AnyKernel3 \
             AnyKernel3          # fallback: 通用模板
 
-          # 复制内核镜像 (优先 Image.gz，其次 Image)
           if [ -f "$BOOT_DIR/Image.gz" ]; then
             cp "$BOOT_DIR/Image.gz" AnyKernel3/
             echo "Copied Image.gz"
@@ -94,7 +93,6 @@ jobs:
             echo "Copied Image"
           fi
 
-          # 打包 (不含 dtbo.img — 该源码的 dtbo 有已知 bug)
           TAG="thyme-kernel-$(date -u +%Y%m%d_%H%M)"
           cd AnyKernel3
           zip -r9 "../${TAG}.zip" . \
