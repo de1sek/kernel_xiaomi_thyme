@@ -18,10 +18,10 @@ jobs:
   build:
     name: "Linux 4.19.157 · thyme · Android 13"
     runs-on: ubuntu-22.04
-    timeout-minutes: 120        # 最多跑 2 小时，防止卡死
+    timeout-minutes: 180        
 
     steps:
-      # ── 1. 安装依赖 ──────────────────────────────────────────
+      
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
@@ -34,7 +34,7 @@ jobs:
           clang --version | head -1
            aarch64-linux-gnu-gcc --version | head -1
 
-      # ── 2. Clone 内核源码 ────────────────────────────────────
+      
       - name: Clone kernel source (de1sek/kernel_xiaomi_thyme)
         run: |
           git clone --depth=1 \
@@ -45,7 +45,7 @@ jobs:
           echo "=== Kernel version ==="
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" Makefile | head -4
 
-      # ── 3. (可选) 注入 KernelSU ──────────────────────────────
+      
       - name: Inject KernelSU
         if: ${{ github.event.inputs.kernelsu == 'true' }}
         run: |
@@ -53,7 +53,7 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
           echo "KernelSU injected"
 
-      # ── 4. 编译内核 ──────────────────────────────────────────
+      
       - name: Build kernel
         run: |
           cd kernel
@@ -84,7 +84,7 @@ jobs:
           ls -lh out/arch/arm64/boot/Image* 2>/dev/null \
             || { echo "❌ No Image found!"; exit 1; }
 
-      # ── 5. 打包 AnyKernel3 ───────────────────────────────────
+      
       - name: Package with AnyKernel3
         run: |
           BOOT_DIR=kernel/out/arch/arm64/boot
@@ -117,7 +117,7 @@ jobs:
           ls -lh "../${TAG}.zip"
           echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
 
-      # ── 6. 上传 Artifacts ────────────────────────────────────
+      
       - name: Upload Image.gz
        uses: actions/upload-artifact@v4
         with:
@@ -132,7 +132,7 @@ jobs:
           path: "*.zip"
           if-no-files-found: warn
 
-      # ── 7. (可选) 发布 Release ───────────────────────────────
+      
       - name: Create GitHub Release
         if: ${{ github.event.inputs.create_release == 'true' }}
         uses: softprops/action-gh-release@v2
@@ -146,9 +146,7 @@ jobs:
             - **KernelSU**: ${{ github.event.inputs.kernelsu }}
             - **编译器**: $(clang --version | head -1)
 
-            ## 注意
-            > ⚠️ **请勿刷入 dtbo.img**，此源码生成的 dtbo 会导致手势失灵、卡槽无服务等问题。
-            > 刷入方式：TWRP / Magisk 直接刷 zip；或手动替换 boot 分区的 Image.gz。
+            
           files: |
             *.zip
             kernel/out/arch/arm64/boot/Image*
