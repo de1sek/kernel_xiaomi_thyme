@@ -1,7 +1,6 @@
 name: Build Thyme Kernel
 
 on:
-  workflow_dispatch:
     inputs:
       create_release:
         description: '编译成功后发布 Release'
