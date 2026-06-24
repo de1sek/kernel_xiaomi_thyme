@@ -1,5 +1,4 @@
-
-    inputs:
+inputs:
       create_release:
         description: '编译成功后发布 Release'
         required: false
