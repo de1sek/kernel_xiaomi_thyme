@@ -64,7 +64,6 @@ jobs:
           START=$(date +%s)
           make "${MAKE_FLAGS[@]}"
           END=$(date +%s)
-          echo "Build time: $(( (END-START)/60 ))m$(( (END-START)%60 ))s"
 
           # 检查产物
           echo "=== Build artifacts ==="
