@@ -1,132 +1,64 @@
-inputs:
-      create_release:
-        description: '编译成功后发布 Release'
-        required: false
-        default: false
-        type: boolean
-      kernelsu:
-        description: '注入 KernelSU'
-        required: false
-        default: false
-        type: boolean
+name: Build Thyme Kernel
 
-    name: "Linux 4.19.157 · thyme · Android 13"
+on:
+  workflow_dispatch:
+    inputs:
+      kernelsu:
+        description: 'Inject KernelSU'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 180  
+    timeout-minutes: 120
+
+    steps:
+      - name: Install dependencies
+        run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            bc bison flex libssl-dev libelf-dev make python3 zip git curl \
+            bc bison flex libssl-dev libelf-dev make python3 zip git \
             clang lld llvm \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabi  binutils-arm-linux-gnueabi
-          echo "=== Toolchain versions ==="
-          clang --version | head -1
-           aarch64-linux-gnu-gcc --version | head -1
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
 
-      
-          git clone --depth=1 \
-            -b thirteen \
-            https://github.com/de1sek/kernel_xiaomi_thyme \
-            kernel
-          cd kernel
-          echo "=== Kernel version ==="
-          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" Makefile | head -4
+      - name: Clone kernel source
+        run: |
+          git clone --depth=1 -b thirteen \
+            https://github.com/de1sek/kernel_xiaomi_thyme kernel
 
-      
+      - name: Inject KernelSU
+        if: github.event.inputs.kernelsu == 'true'
+        run: |
           cd kernel
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
-          echo "KernelSU injected"
+          curl -LSs \
+          https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh \
+            | bash -s main
 
-      
+      - name: Build kernel
+        run: |
           cd kernel
-          
-          MAKE_FLAGS=(
-            -j$(nproc --all)            
-            O=out
-            ARCH=arm64
-            SUBARCH=arm64
-            LLVM=1
-            CROSS_COMPILE=aarch64-linux-gnu-
-            CROSS_COMPILE_COMPAT=arm-linux-gnueabi-
+          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            vendor/thyme_defconfig
+          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu-
-          )
 
-          echo "=== [1/2] make defconfig ==="
-          make "${MAKE_FLAGS[@]}" vendor/thyme_defconfig
-
-          echo "=== [2/2] make kernel (jobs=$(nproc --all)) ==="
-          START=$(date +%s)
-          make "${MAKE_FLAGS[@]}"
-          END=$(date +%s)
-
-          # 检查产物
-          echo "=== Build artifacts ==="
-          ls -lh out/arch/arm64/boot/Image* 2>/dev/null \
-            || { echo "❌ No Image found!"; exit 1; }
-
-    
-          BOOT_DIR=kernel/out/arch/arm64/boot
-
-          # 克隆 AnyKernel3 (thyme 分支)
-          git clone --depth=1 \
-            -b thyme \
-            https://github.com/easterNday/AnyKernel3 \
-            AnyKernel3 \
-          || git clone --depth=1 \
-            https://github.com/osm0sis/AnyKernel3 \
-            AnyKernel3          # fallback: 通用模板
-
-          if [ -f "$BOOT_DIR/Image.gz" ]; then
-            cp "$BOOT_DIR/Image.gz" AnyKernel3/
-            echo "Copied Image.gz"
-          elif [ -f "$BOOT_DIR/Image" ]; then
-            cp "$BOOT_DIR/Image" AnyKernel3/
-            echo "Copied Image"
-          fi
-
-          TAG="thyme-kernel-$(date -u +%Y%m%d_%H%M)"
-          cd AnyKernel3
-          zip -r9 "../${TAG}.zip" . \
-            --exclude='.git/*' \
-            --exclude='*.zip' \
-            --exclude='dtbo.img'   # ← 故意跳过 dtbo
-          ls -lh "../${TAG}.zip"
-          echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
-
-    
-       uses: actions/upload-artifact@v4
-        with:
-          name: thyme-Image-${{ github.run_number }}
-          path: kernel/out/arch/arm64/boot/Image*
-          if-no-files-found: warn
-
-      - name: Upload AnyKernel3 zip
+      - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
-          name: thyme-AnyKernel3-${{ github.run_number }}
-          path: "*.zip"
-          if-no-files-found: warn
-
-      
-      - name: Create GitHub Release
-        if: ${{ github.event.inputs.create_release == 'true' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "${{ env.RELEASE_TAG }}"
-          name: "Thyme Kernel · ${{ env.RELEASE_TAG }}"
-          body: |
-            ## 小米 10S (thyme) 内核编译产物
-            - **内核版本**: Linux 4.19.157
-            - **源码**: [de1sek/kernel_xiaomi_thyme@thirteen](https://github.com/de1sek/kernel_xiaomi_thyme/tree/thirteen)
-            - **KernelSU**: ${{ github.event.inputs.kernelsu }}
-            - **编译器**: $(clang --version | head -1)
-
-            
-          files: |
-            *.zip
-            kernel/out/arch/arm64/boot/Image*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  
-       
+          name: thyme-kernel-${{ github.run_number }}
+          path: kernel/out/arch/arm64/boot/Image*
+          if-no-files-found: error
