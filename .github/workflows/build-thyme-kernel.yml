@@ -19,8 +19,6 @@ jobs:
     name: "Linux 4.19.157 · thyme · Android 13"
     runs-on: ubuntu-22.04
     timeout-minutes: 180        
-
-      - name: Install dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
