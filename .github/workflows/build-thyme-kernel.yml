@@ -30,7 +30,6 @@ jobs:
            aarch64-linux-gnu-gcc --version | head -1
 
       
-      - name: Clone kernel source (de1sek/kernel_xiaomi_thyme)
         run: |
           git clone --depth=1 \
             -b thirteen \
