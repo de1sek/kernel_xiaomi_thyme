@@ -30,7 +30,6 @@ jobs:
            aarch64-linux-gnu-gcc --version | head -1
 
       
-        run: |
           git clone --depth=1 \
             -b thirteen \
             https://github.com/de1sek/kernel_xiaomi_thyme \
@@ -40,7 +39,6 @@ jobs:
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" Makefile | head -4
 
       
-      - name: Inject KernelSU
         if: ${{ github.event.inputs.kernelsu == 'true' }}
         run: |
           cd kernel
@@ -48,11 +46,8 @@ jobs:
           echo "KernelSU injected"
 
       
-      - name: Build kernel
-        run: |
           cd kernel
-
-          # 公共 make 参数
+          
           MAKE_FLAGS=(
             -j$(nproc --all)            
             O=out
@@ -78,9 +73,7 @@ jobs:
           ls -lh out/arch/arm64/boot/Image* 2>/dev/null \
             || { echo "❌ No Image found!"; exit 1; }
 
-      
-      - name: Package with AnyKernel3
-        run: |
+    
           BOOT_DIR=kernel/out/arch/arm64/boot
 
           # 克隆 AnyKernel3 (thyme 分支)
@@ -111,8 +104,7 @@ jobs:
           ls -lh "../${TAG}.zip"
           echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
 
-      
-      - name: Upload Image.gz
+    
        uses: actions/upload-artifact@v4
         with:
           name: thyme-Image-${{ github.run_number }}
