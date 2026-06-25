@@ -23,13 +23,14 @@ jobs:
         
     steps:
       - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            bc bison flex libssl-dev libelf-dev make python3 zip git \
-            clang lld llvm \
-            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y \
+          bc bison flex libssl-dev libelf-dev make python3 zip git \
+          clang lld llvm \
+          gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
+          python2 python-is-python2
 
       - name: Clone kernel source
         run: |
@@ -42,10 +43,7 @@ jobs:
           curl -LSs \
           https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh \
             | bash -s main
-      - name: Set up Python 2.7
-      uses: actions/setup-python@v5
-      with:
-        python-version: '2.7'    
+
       - name: Build kernel
         run: |
           cd kernel
