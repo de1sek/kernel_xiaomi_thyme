@@ -20,6 +20,11 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 120
+          - name: Set up Python 2.7
+      uses: actions/setup-python@v5
+      with:
+        python-version: '2.7'
+        
 
     steps:
       - name: Install dependencies
@@ -35,12 +40,6 @@ jobs:
         run: |
           git clone --depth=1 -b thirteen \
             https://github.com/de1sek/kernel_xiaomi_thyme kernel
-     
-      - name: Set up Python 2.7
-      uses: actions/setup-python@v5
-      with:
-        python-version: '2.7'
-        
       - name: Inject KernelSU
         if: github.event.inputs.kernelsu == 'true'
         run: |
