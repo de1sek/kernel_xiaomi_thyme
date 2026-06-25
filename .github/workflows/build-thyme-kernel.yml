@@ -41,17 +41,20 @@ jobs:
           cd kernel
           curl -LSs \
             https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh \
-            | bash -s susfs-main
+            | bash -s main
           git clone --depth=1 -b kernel-4.19 \
             https://gitlab.com/simonpunk/susfs4ksu.git ../susfs4ksu
           cp ../susfs4ksu/kernel_patches/fs/susfs.c fs/
           cp ../susfs4ksu/kernel_patches/include/linux/susfs.h include/linux/
           patch -p1 --fuzz=3 \
-            < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch
+            < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch || true
+          grep -q "android_kabi_reserved1" include/linux/sched.h || \
+            sed -i 's/\trandomized_struct_fields_end/#ifdef CONFIG_ANDROID\n\tu64 android_kabi_reserved1;\n\tu64 android_kabi_reserved2;\n\tu64 android_kabi_reserved3;\n\tu64 android_kabi_reserved4;\n#endif\n\trandomized_struct_fields_end/' \
+            include/linux/sched.h
           echo "CONFIG_KPM=y" >> arch/arm64/configs/thyme_defconfig
           echo "CONFIG_KALLSYMS=y" >> arch/arm64/configs/thyme_defconfig
           echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/thyme_defconfig
-
+          
       - name: Build kernel
         run: |
           cd kernel
