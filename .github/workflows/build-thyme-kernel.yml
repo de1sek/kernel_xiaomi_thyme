@@ -30,7 +30,6 @@ jobs:
             clang lld llvm \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
             gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
-            python2 python-is-python2
 
       - name: Clone kernel source
         run: |
@@ -56,6 +55,7 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu-
+            Image.gz
 
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
