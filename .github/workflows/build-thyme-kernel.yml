@@ -20,17 +20,18 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 120
-        
+
     steps:
       - name: Install dependencies
-      run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y \
-          bc bison flex libssl-dev libelf-dev make python3 zip git \
-          clang lld llvm \
-          gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-          gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
-          python2 python-is-python2
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            bc bison flex libssl-dev libelf-dev make python3 zip git \
+            clang lld llvm \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
+            python2 python-is-python2
+
       - name: Clone kernel source
         run: |
           git clone --depth=1 -b thirteen \
