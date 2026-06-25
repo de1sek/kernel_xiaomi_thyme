@@ -31,7 +31,6 @@ jobs:
           gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
           gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
           python2 python-is-python2
-
       - name: Clone kernel source
         run: |
           git clone --depth=1 -b thirteen \
