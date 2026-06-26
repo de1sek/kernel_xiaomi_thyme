@@ -35,113 +35,111 @@ jobs:
         run: |
           git clone --depth=1 -b thirteen \
             https://github.com/de1sek/kernel_xiaomi_thyme kernel
+
       - name: Inject SukiSU Ultra + SUSFS + KPM
-      if: github.event.inputs.kernelsu == 'true'
-      env:
-        PATCH_EXEC: |
-          with open('fs/exec.c') as f:
-              c = f.read()
-          extern = (
-              "\n#ifdef CONFIG_KSU\n"
-              "extern bool ksu_execveat_hook __read_mostly;\n"
-              "extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,\n"
-              "    void *argv, void *envp, int *flags);\n"
-              "extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,\n"
-              "    void *argv, void *envp, int *flags);\n"
-              "#endif\n"
-          )
-          hook = (
-              "\n#ifdef CONFIG_KSU\n"
-              "\tif (unlikely(ksu_execveat_hook))\n"
-              "\t\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n"
-              "\telse\n"
-              "\t\tksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);\n"
-              "#endif\n"
-          )
-          c = c.replace("static int do_execveat_common(", extern + "static int do_execveat_common(", 1)
-          c = c.replace("\treturn __do_execve_file(fd, filename, argv, envp, flags, NULL);",
-                        hook + "\treturn __do_execve_file(fd, filename, argv, envp, flags, NULL);", 1)
-          with open('fs/exec.c', 'w') as f:
-              f.write(c)
-          print("exec.c patched")
-        PATCH_OPEN: |
-          import re
-          with open('fs/open.c') as f:
-              c = f.read()
-          extern = (
-              "\n#ifdef CONFIG_KSU\n"
-              "extern int ksu_handle_faccessat(int *dfd, const char __user **filename_ptr,\n"
-              "    int *mode, int *flags);\n"
-              "#endif\n"
-          )
-          hook = (
-              "\n#ifdef CONFIG_KSU\n"
-              "\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);\n"
-              "#endif\n"
-          )
-          c = c.replace("long do_faccessat(int dfd,", extern + "long do_faccessat(int dfd,", 1)
-          c = re.sub(r'(long do_faccessat\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
-          with open('fs/open.c', 'w') as f:
-              f.write(c)
-          print("open.c patched")
-        PATCH_RW: |
-          import re
-          with open('fs/read_write.c') as f:
-              c = f.read()
-          extern = (
-              "\n#ifdef CONFIG_KSU\n"
-              "extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,\n"
-              "    size_t *count_ptr, loff_t **pos);\n"
-              "#endif\n"
-          )
-          hook = (
-              "\n#ifdef CONFIG_KSU\n"
-              "\tksu_handle_vfs_read(&file, &buf, &count, &pos);\n"
-              "#endif\n"
-          )
-          c = c.replace("ssize_t vfs_read(struct file *file,", extern + "ssize_t vfs_read(struct file *file,", 1)
-          c = re.sub(r'(ssize_t vfs_read\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
-          with open('fs/read_write.c', 'w') as f:
-              f.write(c)
-          print("read_write.c patched")
-      run: |
-        cd kernel
-        curl -LSs \
-          https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh \
-          | bash -s main
-        git clone --depth=1 -b kernel-4.19 \
-          https://gitlab.com/simonpunk/susfs4ksu.git ../susfs4ksu
-        cp ../susfs4ksu/kernel_patches/fs/susfs.c fs/
-        cp ../susfs4ksu/kernel_patches/include/linux/susfs.h include/linux/
-        patch -p1 --fuzz=3 \
-          < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch || true
-        
-        grep -q "android_kabi_reserved1" include/linux/sched.h || \
-          sed -i 's/\trandomized_struct_fields_end/#ifdef CONFIG_ANDROID\n\tu64 android_kabi_reserved1;\n\tu64 android_kabi_reserved2;\n\tu64 android_kabi_reserved3;\n\tu64 android_kabi_reserved4;\n#endif\n\trandomized_struct_fields_end/' \
-          include/linux/sched.h
+        if: github.event.inputs.kernelsu == 'true'
+        env:
+          PATCH_EXEC: |
+            with open('fs/exec.c') as f:
+                c = f.read()
+            extern = (
+                "\n#ifdef CONFIG_KSU\n"
+                "extern bool ksu_execveat_hook __read_mostly;\n"
+                "extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,\n"
+                "    void *argv, void *envp, int *flags);\n"
+                "extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,\n"
+                "    void *argv, void *envp, int *flags);\n"
+                "#endif\n"
+            )
+            hook = (
+                "\n#ifdef CONFIG_KSU\n"
+                "\tif (unlikely(ksu_execveat_hook))\n"
+                "\t\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n"
+                "\telse\n"
+                "\t\tksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);\n"
+                "#endif\n"
+            )
+            c = c.replace("static int do_execveat_common(", extern + "static int do_execveat_common(", 1)
+            c = c.replace("\treturn __do_execve_file(fd, filename, argv, envp, flags, NULL);",
+                          hook + "\treturn __do_execve_file(fd, filename, argv, envp, flags, NULL);", 1)
+            with open('fs/exec.c', 'w') as f:
+                f.write(c)
+            print("exec.c patched")
+          PATCH_OPEN: |
+            import re
+            with open('fs/open.c') as f:
+                c = f.read()
+            extern = (
+                "\n#ifdef CONFIG_KSU\n"
+                "extern int ksu_handle_faccessat(int *dfd, const char __user **filename_ptr,\n"
+                "    int *mode, int *flags);\n"
+                "#endif\n"
+            )
+            hook = (
+                "\n#ifdef CONFIG_KSU\n"
+                "\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);\n"
+                "#endif\n"
+            )
+            c = c.replace("long do_faccessat(int dfd,", extern + "long do_faccessat(int dfd,", 1)
+            c = re.sub(r'(long do_faccessat\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
+            with open('fs/open.c', 'w') as f:
+                f.write(c)
+            print("open.c patched")
+          PATCH_RW: |
+            import re
+            with open('fs/read_write.c') as f:
+                c = f.read()
+            extern = (
+                "\n#ifdef CONFIG_KSU\n"
+                "extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,\n"
+                "    size_t *count_ptr, loff_t **pos);\n"
+                "#endif\n"
+            )
+            hook = (
+                "\n#ifdef CONFIG_KSU\n"
+                "\tksu_handle_vfs_read(&file, &buf, &count, &pos);\n"
+                "#endif\n"
+            )
+            c = c.replace("ssize_t vfs_read(struct file *file,", extern + "ssize_t vfs_read(struct file *file,", 1)
+            c = re.sub(r'(ssize_t vfs_read\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
+            with open('fs/read_write.c', 'w') as f:
+                f.write(c)
+            print("read_write.c patched")
+        run: |
+          cd kernel
+          curl -LSs \
+            https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh \
+            | bash -s main
+          git clone --depth=1 -b kernel-4.19 \
+            https://gitlab.com/simonpunk/susfs4ksu.git ../susfs4ksu
+          cp ../susfs4ksu/kernel_patches/fs/susfs.c fs/
+          cp ../susfs4ksu/kernel_patches/include/linux/susfs.h include/linux/
+          patch -p1 --fuzz=3 \
+            < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch || true
+          
+          grep -q "android_kabi_reserved1" include/linux/sched.h || \
+            sed -i 's/\trandomized_struct_fields_end/#ifdef CONFIG_ANDROID\n\tu64 android_kabi_reserved1;\n\tu64 android_kabi_reserved2;\n\tu64 android_kabi_reserved3;\n\tu64 android_kabi_reserved4;\n#endif\n\trandomized_struct_fields_end/' \
+            include/linux/sched.h
 
-        # fs/exec.c 插桩
-        if ! grep -q ksu_handle_execveat fs/exec.c; then
-            echo "$PATCH_EXEC" > /tmp/patch_exec.py
-            python3 /tmp/patch_exec.py
-        fi
+          if ! grep -q ksu_handle_execveat fs/exec.c; then
+              echo "$PATCH_EXEC" > /tmp/patch_exec.py
+              python3 /tmp/patch_exec.py
+          fi
 
-        # fs/open.c 插桩
-        if ! grep -q ksu_handle_faccessat fs/open.c; then
-            echo "$PATCH_OPEN" > /tmp/patch_open.py
-            python3 /tmp/patch_open.py
-        fi
+          if ! grep -q ksu_handle_faccessat fs/open.c; then
+              echo "$PATCH_OPEN" > /tmp/patch_open.py
+              python3 /tmp/patch_open.py
+          fi
 
-        # fs/read_write.c 插桩
-        if ! grep -q ksu_handle_vfs_read fs/read_write.c; then
-            echo "$PATCH_RW" > /tmp/patch_rw.py
-            python3 /tmp/patch_rw.py
-        fi
+          if ! grep -q ksu_handle_vfs_read fs/read_write.c; then
+              echo "$PATCH_RW" > /tmp/patch_rw.py
+              python3 /tmp/patch_rw.py
+          fi
 
-        echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/arm64/configs/thyme_defconfig
-        echo "CONFIG_KPM=y" >> arch/arm64/configs/thyme_defconfig
-        echo "CONFIG_KALLSYMS=y" >> arch/arm64/configs/thyme_defconfig
-        echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/thyme_defconfig
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/arm64/configs/thyme_defconfig
+          echo "CONFIG_KPM=y" >> arch/arm64/configs/thyme_defconfig
+          echo "CONFIG_KALLSYMS=y" >> arch/arm64/configs/thyme_defconfig
+          echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/thyme_defconfig
           
       - name: Build kernel
         run: |
