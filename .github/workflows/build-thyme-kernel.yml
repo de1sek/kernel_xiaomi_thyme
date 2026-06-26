@@ -39,107 +39,106 @@ jobs:
       - name: Inject SukiSU Ultra + SUSFS + KPM
         if: github.event.inputs.kernelsu == 'true'
         env:
+          # 针对 4.19 内核进行完美适配的 Python 脚本
           PATCH_EXEC: |
             with open('fs/exec.c') as f:
                 c = f.read()
-            extern = (
-                "\n#ifdef CONFIG_KSU\n"
-                "extern bool ksu_execveat_hook __read_mostly;\n"
-                "extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,\n"
-                "    void *argv, void *envp, int *flags);\n"
-                "extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,\n"
-                "    void *argv, void *envp, int *flags);\n"
-                "#endif\n"
-            )
-            hook = (
-                "\n#ifdef CONFIG_KSU\n"
-                "\tif (unlikely(ksu_execveat_hook))\n"
-                "\t\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n"
-                "\telse\n"
-                "\t\tksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);\n"
-                "#endif\n"
-            )
-            c = c.replace("static int do_execveat_common(", extern + "static int do_execveat_common(", 1)
-            c = c.replace("\treturn __do_execve_file(fd, filename, argv, envp, flags, NULL);",
-                          hook + "\treturn __do_execve_file(fd, filename, argv, envp, flags, NULL);", 1)
+            extern = "\n#ifdef CONFIG_KSU\nextern bool ksu_execveat_hook __read_mostly;\nextern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags);\nextern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags);\n#endif\n"
+            hook = "\n#ifdef CONFIG_KSU\n\tif (unlikely(ksu_execveat_hook))\n\t\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n\telse\n\t\tksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);\n#endif\n"
+            
+            # 注入外部声明
+            if "static int do_execveat_common(" in c:
+                c = c.replace("static int do_execveat_common(", extern + "static int do_execveat_common(", 1)
+            
+            # 自动适配 4.19 内核的返回函数名（优先匹配 4.19 标准的 do_execve_common）
+            if "return do_execve_common(" in c:
+                c = c.replace("return do_execve_common(", hook + "\treturn do_execve_common(", 1)
+            elif "return __do_execve_file(" in c:
+                c = c.replace("return __do_execve_file(", hook + "\treturn __do_execve_file(", 1)
+            
             with open('fs/exec.c', 'w') as f:
                 f.write(c)
-            print("exec.c patched")
+
           PATCH_OPEN: |
             import re
             with open('fs/open.c') as f:
                 c = f.read()
-            extern = (
-                "\n#ifdef CONFIG_KSU\n"
-                "extern int ksu_handle_faccessat(int *dfd, const char __user **filename_ptr,\n"
-                "    int *mode, int *flags);\n"
-                "#endif\n"
-            )
-            hook = (
-                "\n#ifdef CONFIG_KSU\n"
-                "\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);\n"
-                "#endif\n"
-            )
-            c = c.replace("long do_faccessat(int dfd,", extern + "long do_faccessat(int dfd,", 1)
-            c = re.sub(r'(long do_faccessat\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
+            extern = "\n#ifdef CONFIG_KSU\nextern int ksu_handle_faccessat(int *dfd, const char __user **filename_ptr, int *mode, int *flags);\n#endif\n"
+            hook = "\n#ifdef CONFIG_KSU\n\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);\n#endif\n"
+            if "long do_faccessat(int dfd," in c:
+                c = c.replace("long do_faccessat(int dfd,", extern + "long do_faccessat(int dfd,", 1)
+                c = re.sub(r'(long do_faccessat\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
             with open('fs/open.c', 'w') as f:
                 f.write(c)
-            print("open.c patched")
+
           PATCH_RW: |
             import re
             with open('fs/read_write.c') as f:
                 c = f.read()
-            extern = (
-                "\n#ifdef CONFIG_KSU\n"
-                "extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,\n"
-                "    size_t *count_ptr, loff_t **pos);\n"
-                "#endif\n"
-            )
-            hook = (
-                "\n#ifdef CONFIG_KSU\n"
-                "\tksu_handle_vfs_read(&file, &buf, &count, &pos);\n"
-                "#endif\n"
-            )
-            c = c.replace("ssize_t vfs_read(struct file *file,", extern + "ssize_t vfs_read(struct file *file,", 1)
-            c = re.sub(r'(ssize_t vfs_read\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
+            extern = "\n#ifdef CONFIG_KSU\nextern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr, size_t *count_ptr, loff_t **pos);\n#endif\n"
+            hook = "\n#ifdef CONFIG_KSU\n\tksu_handle_vfs_read(&file, &buf, &count, &pos);\n#endif\n"
+            if "ssize_t vfs_read(struct file *file," in c:
+                c = c.replace("ssize_t vfs_read(struct file *file,", extern + "ssize_t vfs_read(struct file *file,", 1)
+                c = re.sub(r'(ssize_t vfs_read\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
             with open('fs/read_write.c', 'w') as f:
                 f.write(c)
-            print("read_write.c patched")
         run: |
           cd kernel
-          curl -LSs \
-            https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh \
-            | bash -s main
-          git clone --depth=1 -b kernel-4.19 \
-            https://gitlab.com/simonpunk/susfs4ksu.git ../susfs4ksu
+          # 1. 注入 SukiSU Ultra 驱动源码
+          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s main
+          
+          # 2. 克隆并应用 SUSFS 4.19 补丁
+          git clone --depth=1 -b kernel-4.19 https://gitlab.com/simonpunk/susfs4ksu.git ../susfs4ksu
           cp ../susfs4ksu/kernel_patches/fs/susfs.c fs/
           cp ../susfs4ksu/kernel_patches/include/linux/susfs.h include/linux/
-          patch -p1 --fuzz=3 \
-            < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch || true
+          patch -p1 --fuzz=3 < ../susfs4ksu/kernel_patches/50_add_susfs_in_kernel-4.19.patch || true
           
-          grep -q "android_kabi_reserved1" include/linux/sched.h || \
-            sed -i 's/\trandomized_struct_fields_end/#ifdef CONFIG_ANDROID\n\tu64 android_kabi_reserved1;\n\tu64 android_kabi_reserved2;\n\tu64 android_kabi_reserved3;\n\tu64 android_kabi_reserved4;\n#endif\n\trandomized_struct_fields_end/' \
-            include/linux/sched.h
-
+          # 注意：这里删除了你原先针对 GKI 破坏 sched.h 的 android_kabi_reserved1 代码，传统 4.19 不需要它
+          
+          # 3. 执行安全的 Python 手动插桩
           if ! grep -q ksu_handle_execveat fs/exec.c; then
               echo "$PATCH_EXEC" > /tmp/patch_exec.py
               python3 /tmp/patch_exec.py
           fi
-
           if ! grep -q ksu_handle_faccessat fs/open.c; then
               echo "$PATCH_OPEN" > /tmp/patch_open.py
               python3 /tmp/patch_open.py
           fi
-
           if ! grep -q ksu_handle_vfs_read fs/read_write.c; then
               echo "$PATCH_RW" > /tmp/patch_rw.py
               python3 /tmp/patch_rw.py
           fi
 
-          echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/arm64/configs/thyme_defconfig
-          echo "CONFIG_KPM=y" >> arch/arm64/configs/thyme_defconfig
-          echo "CONFIG_KALLSYMS=y" >> arch/arm64/configs/thyme_defconfig
-          echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/thyme_defconfig
+          # 【新增安全熔断】检查插桩是否真的成功，如果没有成功注入CONFIG_KSU，任务直接报错，防止静默失败
+          if ! git diff fs/exec.c | grep -q "CONFIG_KSU"; then
+            echo "❌ 错误：Python 脚本未能成功在 fs/exec.c 中注入钩子！"
+            exit 1
+          fi
+
+          # 4. 安全地配置 defconfig
+          DEFCONFIG="arch/arm64/configs/thyme_defconfig"
+          # 先清理潜在的旧残留，防止重复
+          sed -i '/CONFIG_KSU/d' $DEFCONFIG
+          sed -i '/CONFIG_KPM/d' $DEFCONFIG
+          sed -i '/CONFIG_SUSFS/d' $DEFCONFIG
+          sed -i '/CONFIG_KALLSYMS/d' $DEFCONFIG
+
+          # 重新写入完整、无冲突的配置项
+          echo "CONFIG_KSU=y" >> $DEFCONFIG
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> $DEFCONFIG
+          echo "CONFIG_KPM=y" >> $DEFCONFIG
+          
+          # 必须同时显式启用这两个，才能激活动态符号查找
+          echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
+          echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
+          
+          # 完整的 SUSFS 模块和 KSU 联动开关
+          echo "CONFIG_SUSFS=y" >> $DEFCONFIG
+          echo "CONFIG_SUSFS_SMART_HIDE=y" >> $DEFCONFIG
+          echo "CONFIG_SUSFS_HIDE_RENAME=y" >> $DEFCONFIG
+          echo "CONFIG_SUSFS_HIDE_HEAPPROFD=y" >> $DEFCONFIG
+          echo "CONFIG_SUSFS_SUS_SU=y" >> $DEFCONFIG
+          echo "CONFIG_KSU_SUSFS=y" >> $DEFCONFIG
           
       - name: Build kernel
         run: |
