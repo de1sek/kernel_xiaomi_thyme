@@ -41,7 +41,7 @@ jobs:
           cd kernel
           curl -LSs \
             https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh \
-            | bash -s susfs-main
+            | bash -s main
           git clone --depth=1 -b kernel-4.19 \
             https://gitlab.com/simonpunk/susfs4ksu.git ../susfs4ksu
           cp ../susfs4ksu/kernel_patches/fs/susfs.c fs/
@@ -51,6 +51,92 @@ jobs:
           grep -q "android_kabi_reserved1" include/linux/sched.h || \
             sed -i 's/\trandomized_struct_fields_end/#ifdef CONFIG_ANDROID\n\tu64 android_kabi_reserved1;\n\tu64 android_kabi_reserved2;\n\tu64 android_kabi_reserved3;\n\tu64 android_kabi_reserved4;\n#endif\n\trandomized_struct_fields_end/' \
             include/linux/sched.h
+
+          # fs/exec.c
+          grep -q ksu_handle_execveat fs/exec.c || {
+          cat > /tmp/patch_exec.py << 'PYEOF'
+with open('fs/exec.c') as f:
+    c = f.read()
+extern = (
+    "\n#ifdef CONFIG_KSU\n"
+    "extern bool ksu_execveat_hook __read_mostly;\n"
+    "extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,\n"
+    "    void *argv, void *envp, int *flags);\n"
+    "extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,\n"
+    "    void *argv, void *envp, int *flags);\n"
+    "#endif\n"
+)
+hook = (
+    "\n#ifdef CONFIG_KSU\n"
+    "\tif (unlikely(ksu_execveat_hook))\n"
+    "\t\tksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n"
+    "\telse\n"
+    "\t\tksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);\n"
+    "#endif\n"
+)
+c = c.replace("static int do_execveat_common(", extern + "static int do_execveat_common(", 1)
+c = c.replace("\treturn __do_execve_file(fd, filename, argv, envp, flags, NULL);",
+              hook + "\treturn __do_execve_file(fd, filename, argv, envp, flags, NULL);", 1)
+with open('fs/exec.c', 'w') as f:
+    f.write(c)
+print("exec.c patched")
+PYEOF
+          python3 /tmp/patch_exec.py
+          }
+
+          # fs/open.c
+          grep -q ksu_handle_faccessat fs/open.c || {
+          cat > /tmp/patch_open.py << 'PYEOF'
+import re
+with open('fs/open.c') as f:
+    c = f.read()
+extern = (
+    "\n#ifdef CONFIG_KSU\n"
+    "extern int ksu_handle_faccessat(int *dfd, const char __user **filename_ptr,\n"
+    "    int *mode, int *flags);\n"
+    "#endif\n"
+)
+hook = (
+    "\n#ifdef CONFIG_KSU\n"
+    "\tksu_handle_faccessat(&dfd, &filename, &mode, NULL);\n"
+    "#endif\n"
+)
+c = c.replace("long do_faccessat(int dfd,", extern + "long do_faccessat(int dfd,", 1)
+c = re.sub(r'(long do_faccessat\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
+with open('fs/open.c', 'w') as f:
+    f.write(c)
+print("open.c patched")
+PYEOF
+          python3 /tmp/patch_open.py
+          }
+
+          # fs/read_write.c
+          grep -q ksu_handle_vfs_read fs/read_write.c || {
+          cat > /tmp/patch_rw.py << 'PYEOF'
+import re
+with open('fs/read_write.c') as f:
+    c = f.read()
+extern = (
+    "\n#ifdef CONFIG_KSU\n"
+    "extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,\n"
+    "    size_t *count_ptr, loff_t **pos);\n"
+    "#endif\n"
+)
+hook = (
+    "\n#ifdef CONFIG_KSU\n"
+    "\tksu_handle_vfs_read(&file, &buf, &count, &pos);\n"
+    "#endif\n"
+)
+c = c.replace("ssize_t vfs_read(struct file *file,", extern + "ssize_t vfs_read(struct file *file,", 1)
+c = re.sub(r'(ssize_t vfs_read\([^{]+\{)', lambda m: m.group(1) + hook, c, count=1)
+with open('fs/read_write.c', 'w') as f:
+    f.write(c)
+print("read_write.c patched")
+PYEOF
+          python3 /tmp/patch_rw.py
+          }
+
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/arm64/configs/thyme_defconfig
           echo "CONFIG_KPM=y" >> arch/arm64/configs/thyme_defconfig
           echo "CONFIG_KALLSYMS=y" >> arch/arm64/configs/thyme_defconfig
           echo "CONFIG_KALLSYMS_ALL=y" >> arch/arm64/configs/thyme_defconfig
