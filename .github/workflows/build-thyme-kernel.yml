@@ -22,7 +22,11 @@ jobs:
           git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
 
-      
+      - name: Fix Ubuntu 22.04 toolchain compatibility
+        run: |
+          cd kernel
+          printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
+          sed -i '/^HOSTCFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
       - name: Build kernel
         run: |
           cd kernel
