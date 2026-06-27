@@ -37,10 +37,10 @@ jobs:
 
           # Fix 1: gcc-wrapper.py uses Python 2 print syntax
           cat > scripts/gcc-wrapper.py << 'EOF'
-#!/usr/bin/env python3
-import sys, subprocess
-sys.exit(subprocess.call(sys.argv[1:]))
-EOF
+         #!/usr/bin/env python3
+          import sys, subprocess
+         sys.exit(subprocess.call(sys.argv[1:]))
+           EOF
 
           # Fix 2: DTC yylloc multiple definition
           # GCC 10+ changed -fcommon to -fno-common by default
