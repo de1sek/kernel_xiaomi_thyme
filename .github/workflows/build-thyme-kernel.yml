@@ -32,10 +32,10 @@ jobs:
         run: |
           cd kernel
           cat > scripts/gcc-wrapper.py << 'EOF'
-#!/usr/bin/env python3
-import sys, subprocess
-sys.exit(subprocess.call(sys.argv[1:]))
-EOF
+          #!/usr/bin/env python3
+          import sys, subprocess
+          sys.exit(subprocess.call(sys.argv[1:]))
+          EOF
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
@@ -46,6 +46,7 @@ EOF
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             Image.gz
+
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
