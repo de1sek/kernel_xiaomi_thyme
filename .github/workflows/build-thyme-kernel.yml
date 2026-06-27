@@ -25,12 +25,30 @@ jobs:
       - name: Fix Ubuntu 22.04 toolchain compatibility
         run: |
           cd kernel
+
+          # 修复 1: 升级 gcc-wrapper.py 以兼容 Python 3 语法
           printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
+
+          # 修复 2: 解决高版本 GCC 默认 -fno-common 导致的 yylloc 多重定义报错（解决你当前的报错）
+          sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped || true
+
+          # 修复 3: 调整主机编译参数，允许全局符号合并，并屏蔽 OpenSSL 3.0 的过时警告
           sed -i '/^HOSTCFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
+          sed -i '/^HOSTCXXFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
+
       - name: Build kernel
         run: |
           cd kernel
+          mkdir -p out
+          
+          # 1. 生成 thyme 设备的默认配置
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- vendor/thyme_user_defconfig
+          
+          # 修复 4 (预修大坑): 强行关闭 BTF 调试信息。
+          # Ubuntu 22.04 自带的 pahole 版本过新，解析 4.19 老内核结构时会导致 vmlinux 链接致命错误。
+          scripts/config --file out/.config --disable DEBUG_INFO_BTF || true
+          
+          # 2. 开始正式编译内核核心文件
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- Image.gz
 
       - name: Upload kernel image
