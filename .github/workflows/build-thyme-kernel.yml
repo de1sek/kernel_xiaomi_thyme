@@ -15,60 +15,35 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y \
-            bc bison flex \
-            libssl-dev libelf-dev libncurses-dev \
-            make zip git \
-            python3 python-is-python3 \
-            dwarves \
-            clang lld llvm \
-            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev libncurses-dev make zip git python3 python-is-python3 dwarves clang lld llvm gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
 
       - name: Clone kernel source
         run: |
-          git clone --depth=1 -b alioth-r-oss \
-            https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
+          git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
+
       - name: Fix Ubuntu 22.04 toolchain compatibility
         run: |
           cd kernel
 
           # Fix 1: gcc-wrapper.py uses Python 2 print syntax
           cat > scripts/gcc-wrapper.py << 'EOF'
-         #!/usr/bin/env python3
+          #!/usr/bin/env python3
           import sys, subprocess
-         sys.exit(subprocess.call(sys.argv[1:]))
-           EOF
+          sys.exit(subprocess.call(sys.argv[1:]))
+          EOF
 
           # Fix 2: DTC yylloc multiple definition
-          # GCC 10+ changed -fcommon to -fno-common by default
-          # dtc-lexer and dtc-parser both define yylloc globally
-          sed -i \
-            's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' \
-            scripts/dtc/dtc-lexer.lex.c_shipped
+          sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped
 
           # Fix 3: Makefile HOSTCFLAGS
-          # -fcommon: fix yylloc for any other host tools
-          # -Wno-deprecated-declarations: suppress OpenSSL 3.0 deprecation
-          # warnings in scripts/sign-file.c and scripts/extract-cert.c
-          sed -i \
-            '/^HOSTCFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' \
-            Makefile
+          sed -i '/^HOSTCFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
 
       - name: Build kernel
         run: |
           cd kernel
-          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            vendor/thyme_user_defconfig
-          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            Image.gz
+          make -j$(nproc) O=out ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- vendor/thyme_user_defconfig
+          make -j$(nproc) O=out ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- Image.gz
 
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
