@@ -25,13 +25,12 @@ jobs:
       - name: Fix Ubuntu 22.04 toolchain compatibility
         run: |
           cd kernel
-
-          # Fix 1: gcc-wrapper.py uses Python 2 print syntax
           cat > scripts/gcc-wrapper.py << 'EOF'
           #!/usr/bin/env python3
           import sys, subprocess
           sys.exit(subprocess.call(sys.argv[1:]))
           EOF
+          sed -i '/^HOSTCFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
 
           # Fix 2: DTC yylloc multiple definition
           sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped
