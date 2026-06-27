@@ -31,16 +31,32 @@ jobs:
       - name: Build kernel
         run: |
           cd kernel
+
+          # Fix 1: gcc-wrapper.py Python 2 -> 3
           cat > scripts/gcc-wrapper.py << 'EOF'
-          #!/usr/bin/env python3
-          import sys, subprocess
-          sys.exit(subprocess.call(sys.argv[1:]))
-          EOF
+#!/usr/bin/env python3
+import sys, subprocess
+sys.exit(subprocess.call(sys.argv[1:]))
+EOF
+
+          # Fix 2: DTC yylloc (GCC 10+ -fno-common)
+          python3 -c "
+with open('Makefile') as f:
+    c = f.read()
+c = c.replace(
+    'HOSTCFLAGS   := -Wall',
+    'HOSTCFLAGS   := -fcommon -Wno-deprecated-declarations -Wall'
+)
+with open('Makefile', 'w') as f:
+    f.write(c)
+"
+
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             vendor/thyme_user_defconfig
+
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
