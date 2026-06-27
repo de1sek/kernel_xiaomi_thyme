@@ -32,31 +32,27 @@ jobs:
         run: |
           cd kernel
 
-          # Fix 1: gcc-wrapper.py Python 2 -> 3
+          # Fix 1: 修复 Python 2 到 3 的包装器脚本（注意：EOF必须严格靠左）
           cat > scripts/gcc-wrapper.py << 'EOF'
 #!/usr/bin/env python3
 import sys, subprocess
 sys.exit(subprocess.call(sys.argv[1:]))
 EOF
 
-          # Fix 2: DTC yylloc (GCC 10+ -fno-common)
-          python3 -c "
-with open('Makefile') as f:
-    c = f.read()
-c = c.replace(
-    'HOSTCFLAGS   := -Wall',
-    'HOSTCFLAGS   := -fcommon -Wno-deprecated-declarations -Wall'
-)
-with open('Makefile', 'w') as f:
-    f.write(c)
-"
+          # Fix 2: 替代原本报错的 Python 脚本，用 sed 安全注入 GCC10+ 兼容参数
+          echo ">>> 正在修复 DTC yylloc 编译器兼容问题 (HOSTCFLAGS)..."
+          sed -i 's/^HOSTCFLAGS.*/& -fcommon -Wno-deprecated-declarations/' Makefile
 
+          # 步骤 1: 生成固定的 thyme 用户版本配置文件
+          echo ">>> 正在生成基础配置..."
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             vendor/thyme_user_defconfig
 
+          # 步骤 2: 正式编译内核
+          echo ">>> 正在编译内核内核核心 (Image.gz)..."
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
