@@ -22,22 +22,7 @@ jobs:
           git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
 
-      - name: Fix Ubuntu 22.04 toolchain compatibility
-        run: |
-          cd kernel
-          cat > scripts/gcc-wrapper.py << 'EOF'
-          #!/usr/bin/env python3
-          import sys, subprocess
-          sys.exit(subprocess.call(sys.argv[1:]))
-          EOF
-          sed -i '/^HOSTCFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
-
-          # Fix 2: DTC yylloc multiple definition
-          sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped
-
-          # Fix 3: Makefile HOSTCFLAGS
-          sed -i '/^HOSTCFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
-
+      
       - name: Build kernel
         run: |
           cd kernel
