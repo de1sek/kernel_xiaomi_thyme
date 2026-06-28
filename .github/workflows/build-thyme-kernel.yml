@@ -1,4 +1,4 @@
-name: Build Thyme Kernel
+name: Build Thyme Kernel (Ubuntu 20.04 Env)
 
 on:
   workflow_dispatch:
@@ -8,33 +8,30 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    runs-on: ubuntu-latest
+    
+    # 核心改动：利用 Docker 容器，强制将整个编译环境降级为完美的 Ubuntu 20.04
+    container:
+      image: ubuntu:20.04
 
     steps:
       - name: Install dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev libncurses-dev make zip git python3 python-is-python3 dwarves clang lld llvm gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
-
+          # 阻止 apt 弹出地区选择交互界面
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y bc bison flex libssl-dev libelf-dev libncurses-dev make zip git python3 dwarves clang lld llvm gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi tzdata
+          
       - name: Clone kernel source
         run: |
           git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
 
-      - name: Fix Ubuntu 22.04 toolchain compatibility
+      - name: Fix Python 2 Syntax Only
         run: |
           cd kernel
-
-          # 修复 1: 升级 gcc-wrapper.py 以兼容 Python 3 语法
+          # 仅保留这一个修复：防止小米源码中的旧 python 脚本在现代纯 python3 环境下语法报错
           printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
-
-          # 修复 2: 解决高版本 GCC 默认 -fno-common 导致的 yylloc 多重定义报错（解决你当前的报错）
-          sed -i 's/^YYLTYPE yylloc;$/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped || true
-
-          # 修复 3: 调整主机编译参数，允许全局符号合并，并屏蔽 OpenSSL 3.0 的过时警告
-          sed -i '/^HOSTCFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
-          sed -i '/^HOSTCXXFLAGS/s/-Wall/-fcommon -Wno-deprecated-declarations -Wall/' Makefile
 
       - name: Build kernel
         run: |
@@ -44,11 +41,7 @@ jobs:
           # 1. 生成 thyme 设备的默认配置
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- vendor/thyme_user_defconfig
           
-          # 修复 4 (预修大坑): 强行关闭 BTF 调试信息。
-          # Ubuntu 22.04 自带的 pahole 版本过新，解析 4.19 老内核结构时会导致 vmlinux 链接致命错误。
-          scripts/config --file out/.config --disable DEBUG_INFO_BTF || true
-          
-          # 2. 开始正式编译内核核心文件
+          # 2. 开始正式编译内核（在 Ubuntu 20.04 环境下不再需要加任何额外补丁）
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- Image.gz
 
       - name: Upload kernel image
