@@ -67,7 +67,12 @@ jobs:
             KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
             LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
             Image.gz 2>&1 | tee build.log
-
+            
+      - name: Upload Kernel Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Thyme-Kernel-Image
+          path: kernel/out/arch/arm64/boot/Image.gz
       - name: Verify
         if: always()
         run: |
