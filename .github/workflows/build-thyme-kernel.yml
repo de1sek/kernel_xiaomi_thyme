@@ -44,6 +44,8 @@ jobs:
           sed -i 's/GSI_DEBUG/0/g' drivers/platform/msm/gsi/gsi.c || true
           # 2. 禁用部分导出符号
           sed -i 's/EXPORT_SYMBOL_GPL/EXPORT_SYMBOL/g' drivers/platform/msm/gsi/gsi.c || true
+          find drivers/platform/msm/ -name "*.c" | xargs \
+            sed -i 's/__attribute__((section("__verbose")))//g'
 
       - name: Build kernel
         run: |
