@@ -29,15 +29,15 @@ jobs:
           echo "Kernel version:"
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
 
-      - name: Fix Python 2 Syntax & Hardware Defines
+      - name: Fix Python 2 Syntax & Hardware Defines (Force Power Supply)
         run: |
           cd kernel
-          # Python 兼容性修复
+          # Python 兼容
           printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
           
-          # 自动修复所有 HARDWARE_PLATFORM_SKULD
-          echo "Applying HARDWARE_PLATFORM_SKULD define..."
-          grep -l "HARDWARE_PLATFORM_SKULD" drivers/ 2>/dev/null | while read -r file; do
+          # 强制对 power supply 目录所有文件打 SKULD 定义
+          echo "Applying HARDWARE_PLATFORM_SKULD define forcefully..."
+          find drivers/power/supply/qcom -name "*.c" -type f | while read -r file; do
             sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' "$file"
             echo "✓ Patched: $file"
           done
@@ -55,8 +55,7 @@ jobs:
             KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-format -Wno-format-extra-args -Wno-format-invalid-specifier -Wno-maybe-uninitialized -Wno-unused-function" \
             vendor/thyme_user_defconfig
           
-          echo "=== Step 2: Build Image.gz (with GSI fix) ==="
-          # 针对 GSI relocation 问题增加额外参数
+          echo "=== Step 2: Build Image.gz ==="
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
