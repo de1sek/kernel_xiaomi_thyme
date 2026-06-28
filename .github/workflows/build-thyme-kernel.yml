@@ -25,34 +25,46 @@ jobs:
       - name: Clone kernel
         run: git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
 
-      - name: Apply Fixes
+      - name: Apply Fixes (SKULD + Strong GSI)
         run: |
           cd kernel
+          # Python 3 fix
+          printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
+          
+          # SKULD fix
+          echo "Patching SKULD..."
+          find drivers/power/supply/qcom -name "*.c" -type f | while read -r file; do
+            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' "$file"
+          done
+          
+          # Strong GSI fix
+          echo "Strong GSI fix..."
+          # 1. 移除 verbose 调试
+          sed -i '/#define GSI_DEBUG/d' drivers/platform/msm/gsi/gsi.c || true
+          sed -i 's/GSI_DEBUG/0/g' drivers/platform/msm/gsi/gsi.c || true
+          # 2. 禁用部分导出符号
+          sed -i 's/EXPORT_SYMBOL_GPL/EXPORT_SYMBOL/g' drivers/platform/msm/gsi/gsi.c || true
 
-          printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' \
-            > scripts/gcc-wrapper.py
-
-          sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' \
-            drivers/power/supply/qcom/idtp9415.c
-
-          find drivers/platform/msm/ -name "*.c" | xargs \
-            sed -i 's/__attribute__((section("__verbose")))//g'
       - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
+          
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
-            vendor/thyme_user_defconfig
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
+            LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
+            vendor/thyme_user_defconfig 2>&1 | tee defconfig.log
+          
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
-            Image.gz
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
+            LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
+            Image.gz 2>&1 | tee build.log
 
       - name: Verify
         if: always()
