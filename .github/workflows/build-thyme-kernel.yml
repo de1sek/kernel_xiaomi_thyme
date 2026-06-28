@@ -41,22 +41,18 @@ jobs:
         run: |
           cd kernel
           mkdir -p out
-          
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
-            LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
-            vendor/thyme_user_defconfig 2>&1 | tee defconfig.log
-          
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            vendor/thyme_user_defconfig
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
-            LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
-            Image.gz 2>&1 | tee build.log
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            Image.gz
 
       - name: Verify
         if: always()
