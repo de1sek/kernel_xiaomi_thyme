@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
-    # 核心改动：利用 Docker 容器，强制将整个编译环境降级为完美的 Ubuntu 20.04
+    # 利用 Docker 容器，强制将整个编译环境降级为完美的 Ubuntu 20.04
     container:
       image: ubuntu:20.04
 
@@ -20,7 +20,8 @@ jobs:
           # 阻止 apt 弹出地区选择交互界面
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -qq
-          apt-get install -y bc bison flex libssl-dev libelf-dev libncurses-dev make zip git python3 dwarves clang lld llvm gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi tzdata
+          # 修复核心：在此处加入了 python-is-python3，显式建立 python -> python3 的软链接
+          apt-get install -y bc bison flex libssl-dev libelf-dev libncurses-dev make zip git python3 python-is-python3 cpio dwarves clang lld llvm gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi tzdata
           
       - name: Clone kernel source
         run: |
