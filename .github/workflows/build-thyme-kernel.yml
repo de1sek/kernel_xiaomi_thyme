@@ -38,13 +38,18 @@ jobs:
         run: |
           cd kernel
           mkdir -p out
-          
-          # 1. 生成 thyme 设备的默认配置
-          make -j$(nproc) O=out ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- vendor/thyme_user_defconfig
-          
-          # 2. 开始正式编译内核（在 Ubuntu 20.04 环境下不再需要加任何额外补丁）
-          make -j$(nproc) O=out ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- Image.gz
-
+          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            vendor/thyme_user_defconfig
+          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            Image.gz
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
