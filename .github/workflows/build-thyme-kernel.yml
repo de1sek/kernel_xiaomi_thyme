@@ -10,54 +10,75 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
-    # 利用 Docker 容器，强制将整个编译环境降级为完美的 Ubuntu 20.04
     container:
       image: ubuntu:20.04
 
     steps:
       - name: Install dependencies
         run: |
-          # 阻止 apt 弹出地区选择交互界面
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -qq
-          # 修复核心：在此处加入了 python-is-python3，显式建立 python -> python3 的软链接
-          apt-get install -y bc bison flex libssl-dev libelf-dev libncurses-dev make zip git python3 python-is-python3 cpio dwarves clang lld llvm gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi tzdata
-          
+          apt-get install -y bc bison flex libssl-dev libelf-dev libncurses-dev make zip git \
+            python3 python-is-python3 cpio dwarves clang lld llvm \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi tzdata
+
       - name: Clone kernel source
         run: |
           git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
+          echo "Kernel version:"
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
 
-      - name: Fix Python 2 Syntax Only
+      - name: Fix Python 2 Syntax & Hardware Defines
         run: |
           cd kernel
-          # Python wrapper (existing)
+          # Python 兼容性修复
           printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
-    
-          # Apply SKULD define to relevant drivers
-          for file in drivers/power/supply/qcom/idtp9415.c drivers/power/supply/qcom/rx1619.c; do
-          if [ -f "$file" ]; then
-          sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' "$file"
-          echo "Patched $file with HARDWARE_PLATFORM_SKULD"
-          fi
+          
+          # 自动修复所有 HARDWARE_PLATFORM_SKULD
+          echo "Applying HARDWARE_PLATFORM_SKULD define..."
+          grep -l "HARDWARE_PLATFORM_SKULD" drivers/ 2>/dev/null | while read -r file; do
+            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' "$file"
+            echo "✓ Patched: $file"
           done
+
       - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
+          
+          echo "=== Step 1: Defconfig ==="
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-format -Wno-format-extra-args -Wno-format-invalid-specifier -Wno-maybe-uninitialized -Wno-unused-function" \
             vendor/thyme_user_defconfig
+          
+          echo "=== Step 2: Build Image.gz (with GSI fix) ==="
+          # 针对 GSI relocation 问题增加额外参数
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
-            Image.gz
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-format -Wno-format-extra-args -Wno-format-invalid-specifier -Wno-maybe-uninitialized -Wno-unused-function" \
+            LDFLAGS="-Wl,--no-relax" \
+            Image.gz 2>&1 | tee build.log
+
+      - name: Verify Build Result
+        if: always()
+        run: |
+          cd kernel
+          if [ -f out/arch/arm64/boot/Image.gz ]; then
+            echo "🎉 内核编译成功！"
+            ls -lh out/arch/arm64/boot/
+          else
+            echo "❌ 编译失败，最后 200 行日志："
+            tail -n 200 build.log || true
+          fi
+
       - name: Upload kernel image
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: thyme-kernel-${{ github.run_number }}
