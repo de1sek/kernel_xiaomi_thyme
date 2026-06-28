@@ -1,4 +1,4 @@
-name: Build Thyme Kernel - GSI Fix
+name: Build Thyme Kernel - Strong GSI Fix
 
 on:
   workflow_dispatch:
@@ -9,7 +9,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     container:
       image: ubuntu:20.04
 
@@ -23,62 +22,58 @@ jobs:
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
             gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi tzdata
 
-      - name: Clone kernel source
-        run: |
-          git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
+      - name: Clone kernel
+        run: git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
 
-      - name: Fix Python & Hardware Defines + GSI Patch
+      - name: Apply Fixes (SKULD + Strong GSI)
         run: |
           cd kernel
+          # Python 3 fix
           printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
           
-          echo "Applying HARDWARE_PLATFORM_SKULD define..."
+          # SKULD fix
+          echo "Patching SKULD..."
           find drivers/power/supply/qcom -name "*.c" -type f | while read -r file; do
             sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' "$file"
           done
           
-          echo "Applying GSI relocation fix..."
-          # 强制禁用 GSI 中的 __verbose 调试信息（主要问题源头）
-          sed -i 's/#define GSI_DEBUG/#undef GSI_DEBUG/g' drivers/platform/msm/gsi/gsi.c || true
-          sed -i '/#define GSI_/s/1/0/g' drivers/platform/msm/gsi/gsi.c || true
+          # Strong GSI fix
+          echo "Strong GSI fix..."
+          # 1. 移除 verbose 调试
+          sed -i '/#define GSI_DEBUG/d' drivers/platform/msm/gsi/gsi.c || true
+          sed -i 's/GSI_DEBUG/0/g' drivers/platform/msm/gsi/gsi.c || true
+          # 2. 禁用部分导出符号
+          sed -i 's/EXPORT_SYMBOL_GPL/EXPORT_SYMBOL/g' drivers/platform/msm/gsi/gsi.c || true
 
       - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
           
-          echo "=== Defconfig ==="
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-format -Wno-maybe-uninitialized -Wno-unused-function" \
-            vendor/thyme_user_defconfig
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
+            LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
+            vendor/thyme_user_defconfig 2>&1 | tee defconfig.log
           
-          echo "=== Build Image.gz ==="
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-format -Wno-maybe-uninitialized -Wno-unused-function" \
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
             LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
             Image.gz 2>&1 | tee build.log
 
-      - name: Verify Build Result
+      - name: Verify
         if: always()
         run: |
           cd kernel
           if [ -f out/arch/arm64/boot/Image.gz ]; then
-            echo "🎉 内核编译成功！"
+            echo "🎉 成功！"
             ls -lh out/arch/arm64/boot/
           else
-            echo "❌ 编译失败，最后 200 行日志："
-            tail -n 200 build.log || true
+            echo "❌ 失败，最后 300 行："
+            tail -n 300 build.log
           fi
-
-      - name: Upload kernel image
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: thyme-kernel-${{ github.run_number }}
-          path: kernel/out/arch/arm64/boot/Image*
