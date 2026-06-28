@@ -31,9 +31,9 @@ jobs:
       - name: Fix Python 2 Syntax Only
         run: |
           cd kernel
-          # 仅保留这一个修复：防止小米源码中的旧 python 脚本在现代纯 python3 环境下语法报错
           printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
-
+          sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' \
+            drivers/power/supply/qcom/idtp9415.c
       - name: Build kernel
         run: |
           cd kernel
