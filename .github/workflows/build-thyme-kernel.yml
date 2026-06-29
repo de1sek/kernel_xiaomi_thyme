@@ -1,4 +1,4 @@
-name: Build Thyme Kernel - Strong GSI Fix
+name: Build Thyme Kernel
 
 on:
   workflow_dispatch:
@@ -17,61 +17,52 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -qq
-          apt-get install -y bc bison flex libssl-dev libelf-dev libncurses-dev make zip git \
-            python3 python-is-python3 cpio dwarves clang lld llvm \
+          apt-get install -y \
+            bc bison flex libssl-dev libelf-dev libncurses-dev \
+            make zip git python3 python-is-python3 cpio dwarves \
+            clang lld llvm \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi tzdata
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
+            tzdata
 
-      - name: Clone kernel
-        run: git clone --depth=1 -b alioth-r-oss https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
+      - name: Clone kernel source
+        run: |
+          git clone --depth=1 -b alioth-r-oss \
+            https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
+          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
 
-      - name: Apply Fixes (SKULD + Strong GSI)
+      - name: Apply fixes
         run: |
           cd kernel
-          # Python 3 fix
-          printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' > scripts/gcc-wrapper.py
-          
-          # SKULD fix
-          echo "Patching SKULD..."
-          find drivers/power/supply/qcom -name "*.c" -type f | while read -r file; do
-            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' "$file"
-          done
-          
+
+          printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' \
+            > scripts/gcc-wrapper.py
+
+          find drivers/power/supply/qcom -name "*.c" | xargs \
+            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/'
 
       - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
-          
+
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
-            LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
-            vendor/thyme_user_defconfig 2>&1 | tee defconfig.log
-          
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            vendor/thyme_user_defconfig
+
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-format -Wno-maybe-uninitialized -Wno-unused-function -Wno-unused-variable" \
-            LDFLAGS="-Wl,--no-relax -Wl,--no-warn-rwx-segments --no-warn-rwx-segments -Wl,--allow-multiple-definition" \
-            Image.gz 2>&1 | tee build.log
-            
-      - name: Upload Kernel Artifact
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            Image.gz
+
+      - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
-          name: Thyme-Kernel-Image
-          path: kernel/out/arch/arm64/boot/Image.gz
-      - name: Verify
-        if: always()
-        run: |
-          cd kernel
-          if [ -f out/arch/arm64/boot/Image.gz ]; then
-            echo "🎉 成功！"
-            ls -lh out/arch/arm64/boot/
-          else
-            echo "❌ 失败，最后 300 行："
-            tail -n 300 build.log
-          fi
+          name: thyme-kernel-${{ github.run_number }}
+          path: kernel/out/arch/arm64/boot/Image*
+          if-no-files-found: error
