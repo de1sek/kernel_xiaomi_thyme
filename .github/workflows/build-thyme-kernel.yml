@@ -28,7 +28,7 @@ jobs:
       - name: Clone kernel source
         run: |
           git clone --depth=1 -b alioth-r-oss \
-            https://github.com/de1sek/Xiaomi_Kernel_OpenSource kernel
+            https://github.com/de1sek/android_kernel_xiaomi_thyme
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
 
       - name: Apply fixes
