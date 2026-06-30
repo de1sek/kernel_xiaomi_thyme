@@ -27,15 +27,11 @@ jobs:
 
       - name: Clone kernel source
         run: |
-          # 关键修复：指定克隆到 kernel 目录
           git clone --depth=1 -b alioth-r-oss \
             https://github.com/de1sek/kernel_xiaomi_sm8250 kernel
           
           echo "=== Kernel Version ==="
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" kernel/Makefile | head -5 || true
-          
-          echo "=== Defconfig Check ==="
-          ls -l kernel/arch/arm64/configs/thyme_defconfig || echo "thyme_defconfig not found!"
 
       - name: Apply fixes
         run: |
@@ -50,18 +46,27 @@ jobs:
           cd kernel
           mkdir -p out
           
+          # 增加更多禁用警告的选项，解决 WALT 内联错误
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
+                     -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
+                     -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
+                     -Wno-error=unused-variable -Wno-error=tautological-constant-out-of-range-compare \
+                     -Wno-error=format -Wno-error=stringop-truncation -Wno-error=maybe-uninitialized" \
             thyme_defconfig
           
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
+            KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
+                     -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
+                     -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
+                     -Wno-error=unused-variable -Wno-error=tautological-constant-out-of-range-compare \
+                     -Wno-error=format -Wno-error=stringop-truncation -Wno-error=maybe-uninitialized" \
             Image.gz
 
       - name: Upload kernel image
