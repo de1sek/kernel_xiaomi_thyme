@@ -41,12 +41,12 @@ jobs:
           find drivers/power/supply/qcom -name "*.c" | xargs \
             sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/'
 
-       - name: Build kernel
+      - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
           
-          # GCC 编译 + 全面加强 WALT / inlining / 格式警告屏蔽
+          # GCC 编译 + 全面加强 WALT / inlining 等警告屏蔽
           COMMON_KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
                           -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
                           -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
@@ -67,6 +67,7 @@ jobs:
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             KCFLAGS="$COMMON_KCFLAGS" \
             Image.gz
+
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
