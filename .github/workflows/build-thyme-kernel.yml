@@ -28,7 +28,7 @@ jobs:
       - name: Clone kernel source
         run: |
           git clone --depth=1 -b alioth-r-oss \
-            https://github.com/de1sek/kernel_xiaomi_sm8250_kernel
+            https://github.com/de1sek/kernel_xiaomi_sm8250
           
           echo "=== Kernel Version ==="
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" kernel/Makefile | head -5 || true
