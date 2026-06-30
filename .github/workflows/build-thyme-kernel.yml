@@ -29,13 +29,7 @@ jobs:
           git clone --depth=1 -b alioth-r-oss \
             https://github.com/de1sek/kernel_xiaomi_sm8250
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
-      - name: Apply fixes
-        run: |
-          cd kernel
-          printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' \
-            > scripts/gcc-wrapper.py
-          find drivers/power/supply/qcom -name "*.c" | xargs \
-            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/'
+      
       - name: Build kernel
         run: |
           cd kernel
