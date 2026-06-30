@@ -28,20 +28,28 @@ jobs:
       - name: Clone kernel source
         run: |
           git clone --depth=1 -b alioth-r-oss \
-            https://github.com/de1sek/kernel_xiaomi_sm8250.git kernel
+            https://github.com/de1sek/kernel_xiaomi_sm8250 kernel
           
           echo "=== Kernel Version ==="
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" kernel/Makefile | head -5 || true
           
           echo "=== Defconfig Check ==="
-          ls -l kernel/arch/arm64/configs/thyme_defconfig || echo "Defconfig not found!"
+          ls -l kernel/arch/arm64/configs/thyme_defconfig || echo "thyme_defconfig not found!"
+
+      - name: Apply fixes
+        run: |
+          cd kernel
+          printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' \
+            > scripts/gcc-wrapper.py
+          find drivers/power/supply/qcom -name "*.c" | xargs \
+            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/'
 
       - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
           
-          # 使用正确的 defconfig
+          # 使用正确的 thyme_defconfig
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
@@ -49,7 +57,7 @@ jobs:
             KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
             thyme_defconfig
           
-          # 开始正式编译 Image.gz
+          # 正式编译 Image.gz
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
