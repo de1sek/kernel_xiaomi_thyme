@@ -45,11 +45,11 @@ jobs:
             sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' || true
           
           # WALT is_top_app 修复（lineage-18.1 版本常用）
-          sed -i 's/extern inline bool is_top_app/static inline bool is_top_app/g' include/linux/sched.h || true
-          sed -i 's/__always_inline/inline/g' kernel/sched/walt.h || true
+          # sed -i 's/extern inline bool is_top_app/static inline bool is_top_app/g' include/linux/sched.h || true
+          # sed -i 's/__always_inline/inline/g' kernel/sched/walt.h || true
           
           # 确保 fair.c 能看到 walt 定义
-          sed -i '/#include <linux/sched.h>/a #include "walt.h"' kernel/sched/fair.c || true
+          # sed -i '/#include <linux/sched.h>/a #include "walt.h"' kernel/sched/fair.c || true
 
       - name: Build kernel
         run: |
