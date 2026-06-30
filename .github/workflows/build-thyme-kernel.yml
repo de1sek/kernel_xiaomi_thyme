@@ -46,13 +46,13 @@ jobs:
           cd kernel
           mkdir -p out
           
-          # GCC 编译 + 全面加强 WALT / inlining / 格式等警告屏蔽（20.04 环境下优化）
+          # 适配 ubuntu:20.04 (GCC 9) 的 KCFLAGS
           COMMON_KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
                           -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
                           -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
                           -Wno-error=unused-variable -Wno-error=format \
                           -Wno-error=stringop-truncation -Wno-error=maybe-uninitialized \
-                          -Wno-error=inlining -Wno-error=attributes \
+                          -Wno-error=attributes \
                           -Wno-error=unused-const-variable -Wno-error=declaration-after-statement \
                           -Wno-error=frame-larger-than= -Wno-error=cast-function-type"
           
