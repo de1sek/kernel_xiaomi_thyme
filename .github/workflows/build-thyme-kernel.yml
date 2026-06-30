@@ -41,36 +41,29 @@ jobs:
           find drivers/power/supply/qcom -name "*.c" | xargs \
             sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/'
 
-            - name: Build kernel
+      - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
           
-          # 使用 Clang 14 编译（已适配）
-          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
+          # 使用 GCC 编译（去掉 LLVM=1 和 CLANG_TRIPLE）
+          make -j$(nproc) O=out ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
             KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
                      -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
                      -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
-                     -Wno-error=unused-variable -Wno-error=format \
-                     -Wno-error=stringop-truncation -Wno-error=maybe-uninitialized \
-                     -Wno-error=inlining -Wno-error=attributes" \
+                     -Wno-error=unused-variable -Wno-error=format" \
             thyme_defconfig
           
-          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
+          make -j$(nproc) O=out ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
             KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
                      -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
                      -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
-                     -Wno-error=unused-variable -Wno-error=format \
-                     -Wno-error=stringop-truncation -Wno-error=maybe-uninitialized \
-                     -Wno-error=inlining -Wno-error=attributes" \
+                     -Wno-error=unused-variable -Wno-error=format" \
             Image.gz
-
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
