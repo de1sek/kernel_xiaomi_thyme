@@ -15,46 +15,71 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          apt-get update -qq && apt-get install -y \
-            bc bison flex libssl-dev libelf-dev libncurses-dev make zip git \
-            python3 python-is-python3 cpio dwarves gcc-aarch64-linux-gnu \
-            binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi tzdata
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y \
+            bc bison flex libssl-dev libelf-dev libncurses-dev \
+            make zip git python3 python-is-python3 cpio dwarves \
+            clang lld llvm \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
+            tzdata
 
-      - name: Clone kernel
+      - name: Clone kernel source
         run: |
-          git clone --depth=1 -b lineage-18.1 https://github.com/de1sek/android_kernel_xiaomi_sm8250 kernel
+          git clone --depth=1 -b lineage-18.1 \
+            https://github.com/de1sek/android_kernel_xiaomi_sm8250 kernel
+          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
 
       - name: Apply fixes
         run: |
           cd kernel
-          # WALT 修复
-          sed -i 's/extern inline bool is_top_app/static inline bool is_top_app/g' include/linux/sched.h || true
-          sed -i 's/__always_inline/inline/g' kernel/sched/walt.h || true
-          sed -i '/#include <linux/sched.h>/a #include "walt.h"' kernel/sched/fair.c || true
-          
-          # 更强的错误忽略
-          sed -i 's/^KBUILD_CFLAGS.*/& -Wno-error -Wno-unused -Wno-format -Wno-maybe-uninitialized -Wno-unused-function/' Makefile || true
+          printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' \
+            > scripts/gcc-wrapper.py
 
-      - name: Build
+          find drivers/power/supply/qcom -name "*.c" | xargs \
+            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' || true
+
+          sed -i 's/extern inline bool is_top_app/static inline bool is_top_app/g' \
+            include/linux/sched.h || true
+          sed -i 's/__always_inline/inline/g' kernel/sched/walt.h || true
+          sed -i '\#include <linux/sched.h>#a #include "walt.h"' \
+            kernel/sched/fair.c || true
+
+      - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
-          make -j$(nproc) O=out ARCH=arm64 \
+          KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
+            -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
+            -Wno-error=uninitialized -Wno-error=maybe-uninitialized"
+
+          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-            KCFLAGS="-Wno-error" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            KCFLAGS="$KCFLAGS" \
             vendor/thyme_defconfig 2>&1 | tee defconfig.log
 
-          make -j$(nproc) O=out ARCH=arm64 \
+          make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-            KCFLAGS="-Wno-error" \
-            Image.gz 2>&1 | tee build.log || echo "=== BUILD FAILED ==="
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            KCFLAGS="$KCFLAGS" \
+            Image.gz 2>&1 | tee build.log
 
-      - name: Upload artifacts
+      - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
-          name: build-results
+          name: thyme-kernel-${{ github.run_number }}
+          path: kernel/out/arch/arm64/boot/Image*
+          if-no-files-found: warn
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.run_number }}
           path: |
-            kernel/out/arch/arm64/boot/Image*
-            kernel/*.log
+            kernel/defconfig.log
+            kernel/build.log
