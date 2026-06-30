@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:22.04
+      image: ubuntu:20.04   # 按你的要求改回 20.04
 
     steps:
       - name: Install dependencies
@@ -46,7 +46,7 @@ jobs:
           cd kernel
           mkdir -p out
           
-          # GCC 编译 + 全面加强 WALT / inlining 等警告屏蔽
+          # GCC 编译 + 全面加强 WALT / inlining / 格式等警告屏蔽（20.04 环境下优化）
           COMMON_KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
                           -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
                           -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
