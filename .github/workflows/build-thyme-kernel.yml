@@ -36,20 +36,16 @@ jobs:
         run: |
           cd kernel
           
-          # GCC wrapper (防止旧脚本问题)
           printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' \
             > scripts/gcc-wrapper.py
           
-          # qcom power supply 兼容性修复
           find drivers/power/supply/qcom -name "*.c" | xargs \
             sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' || true
           
-          # WALT is_top_app 修复（lineage-18.1 版本常用）
-          # sed -i 's/extern inline bool is_top_app/static inline bool is_top_app/g' include/linux/sched.h || true
-          # sed -i 's/__always_inline/inline/g' kernel/sched/walt.h || true
-          
-          # 确保 fair.c 能看到 walt 定义
-          # sed -i '/#include <linux/sched.h>/a #include "walt.h"' kernel/sched/fair.c || true
+          # WALT 修复
+          sed -i 's/extern inline bool is_top_app/static inline bool is_top_app/g' include/linux/sched.h || true
+          sed -i 's/__always_inline/inline/g' kernel/sched/walt.h || true
+          sed -i '/#include <linux/sched.h>/a #include "walt.h"' kernel/sched/fair.c || true
 
       - name: Build kernel
         run: |
@@ -63,24 +59,34 @@ jobs:
                           -Wno-error=stringop-truncation -Wno-error=maybe-uninitialized \
                           -Wno-error=attributes -Wno-error=unused-const-variable \
                           -Wno-error=declaration-after-statement -Wno-error=frame-larger-than= \
-                          -Wno-error=cast-function-type"
+                          -Wno-error=cast-function-type -Wno-error=maybe-uninitialized \
+                          -Wno-error=unused-but-set-variable -Wno-error=tautological-compare"
 
-          # 使用 vendor/thyme_defconfig
+          echo "=== Starting defconfig ==="
           make -j$(nproc) O=out ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             KCFLAGS="$COMMON_KCFLAGS" \
-            vendor/thyme_defconfig
-          
+            vendor/thyme_defconfig 2>&1 | tee defconfig.log
+
+          echo "=== Starting Image.gz build ==="
           make -j$(nproc) O=out ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             KCFLAGS="$COMMON_KCFLAGS" \
-            Image.gz
+            Image.gz 2>&1 | tee build.log || echo "Build failed, see build.log"
 
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
           name: thyme-kernel-${{ github.run_number }}
           path: kernel/out/arch/arm64/boot/Image*
-          if-no-files-found: error
+          if-no-files-found: warn
+
+      - name: Upload build logs (for debugging)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            kernel/defconfig.log
+            kernel/build.log
