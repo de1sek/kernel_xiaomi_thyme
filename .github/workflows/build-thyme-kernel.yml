@@ -27,10 +27,9 @@ jobs:
 
       - name: Clone kernel source
         run: |
-          git clone --depth=1 -b lineage-18.1 \
-            https://github.com/de1sek/android_kernel_xiaomi_sm8250 kernel
+          git clone --depth=1 -b alioth-r-oss \
+            https://github.com/UtsavBalar1231/kernel_xiaomi_sm8250 kernel
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
-
       - name: Apply fixes
         run: |
           cd kernel
@@ -65,7 +64,7 @@ jobs:
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             KCFLAGS="$KCFLAGS" \
-            vendor/thyme_defconfig 2>&1 | tee defconfig.log
+            thyme_defconfig 2>&1 | tee defconfig.log
 
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
