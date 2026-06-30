@@ -52,7 +52,13 @@ jobs:
           mkdir -p out
           KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes \
             -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
-            -Wno-error=uninitialized -Wno-error=maybe-uninitialized"
+            -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
+            -Wno-error=unused-variable -Wno-error=format \
+            -Wno-error=stringop-truncation -Wno-error=maybe-uninitialized \
+            -Wno-error=uninitialized -Wno-error=attributes \
+            -Wno-error=unused-const-variable -Wno-error=declaration-after-statement \
+            -Wno-error=frame-larger-than= -Wno-error=cast-function-type \
+            -Wno-error=unused-but-set-variable -Wno-error=tautological-compare"
 
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -67,7 +73,6 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             KCFLAGS="$KCFLAGS" \
             Image.gz 2>&1 | tee build.log
-
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
