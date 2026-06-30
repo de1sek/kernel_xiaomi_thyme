@@ -27,8 +27,9 @@ jobs:
 
       - name: Clone kernel source
         run: |
+          # 关键修复：指定克隆到 kernel 目录
           git clone --depth=1 -b alioth-r-oss \
-            https://github.com/de1sek/kernel_xiaomi_sm8250
+            https://github.com/de1sek/kernel_xiaomi_sm8250 kernel
           
           echo "=== Kernel Version ==="
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" kernel/Makefile | head -5 || true
@@ -49,7 +50,6 @@ jobs:
           cd kernel
           mkdir -p out
           
-          # 使用正确的 thyme_defconfig
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
@@ -57,7 +57,6 @@ jobs:
             KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
             thyme_defconfig
           
-          # 正式编译 Image.gz
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
