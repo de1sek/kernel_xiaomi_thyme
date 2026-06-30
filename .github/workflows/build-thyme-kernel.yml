@@ -24,28 +24,39 @@ jobs:
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
             gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
             tzdata
+
       - name: Clone kernel source
         run: |
           git clone --depth=1 -b alioth-r-oss \
-            https://github.com/de1sek/kernel_xiaomi_sm8250
-          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL)" kernel/Makefile | head -3
-      
+            https://github.com/de1sek/kernel_xiaomi_sm8250.git kernel
+          
+          echo "=== Kernel Version ==="
+          grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" kernel/Makefile | head -5 || true
+          
+          echo "=== Defconfig Check ==="
+          ls -l kernel/arch/arm64/configs/thyme_defconfig || echo "Defconfig not found!"
+
       - name: Build kernel
         run: |
           cd kernel
           mkdir -p out
+          
+          # 使用正确的 defconfig
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
-            vendor/thyme_user_defconfig
+            thyme_defconfig
+          
+          # 开始正式编译 Image.gz
           make -j$(nproc) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             KCFLAGS="-Wno-error=implicit-int -Wno-error=strict-prototypes -Wno-error=implicit-function-declaration -Wno-error=int-conversion" \
             Image.gz
+
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
