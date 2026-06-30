@@ -26,8 +26,8 @@ jobs:
 
       - name: Clone kernel source
         run: |
-          git clone --depth=1 -b alioth-r-oss \
-            https://github.com/de1sek/kernel_xiaomi_sm8250 kernel
+          git clone --depth=1 -b lineage-18.1 \
+            https://github.com/de1sek/android_kernel_xiaomi_sm8250 kernel
           
           echo "=== Kernel Version ==="
           grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL|EXTRAVERSION)" kernel/Makefile | head -5 || true
@@ -36,17 +36,20 @@ jobs:
         run: |
           cd kernel
           
-          # GCC wrapper
+          # GCC wrapper (防止旧脚本问题)
           printf '#!/usr/bin/env python3\nimport sys, subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n' \
             > scripts/gcc-wrapper.py
           
-          # qcom power supply fix
+          # qcom power supply 兼容性修复
           find drivers/power/supply/qcom -name "*.c" | xargs \
-            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/'
+            sed -i '1s/^/#ifndef HARDWARE_PLATFORM_SKULD\n#define HARDWARE_PLATFORM_SKULD 0\n#endif\n\n/' || true
           
-          # === 关键修复：WALT is_top_app inline 问题 ===
+          # WALT is_top_app 修复（lineage-18.1 版本常用）
           sed -i 's/extern inline bool is_top_app/static inline bool is_top_app/g' include/linux/sched.h || true
           sed -i 's/__always_inline/inline/g' kernel/sched/walt.h || true
+          
+          # 确保 fair.c 能看到 walt 定义
+          sed -i '/#include <linux/sched.h>/a #include "walt.h"' kernel/sched/fair.c || true
 
       - name: Build kernel
         run: |
@@ -58,15 +61,16 @@ jobs:
                           -Wno-error=incompatible-pointer-types -Wno-error=unused-function \
                           -Wno-error=unused-variable -Wno-error=format \
                           -Wno-error=stringop-truncation -Wno-error=maybe-uninitialized \
-                          -Wno-error=attributes \
-                          -Wno-error=unused-const-variable -Wno-error=declaration-after-statement \
-                          -Wno-error=frame-larger-than= -Wno-error=cast-function-type"
-          
+                          -Wno-error=attributes -Wno-error=unused-const-variable \
+                          -Wno-error=declaration-after-statement -Wno-error=frame-larger-than= \
+                          -Wno-error=cast-function-type"
+
+          # 使用 vendor/thyme_defconfig
           make -j$(nproc) O=out ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
             KCFLAGS="$COMMON_KCFLAGS" \
-            thyme_defconfig
+            vendor/thyme_defconfig
           
           make -j$(nproc) O=out ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
